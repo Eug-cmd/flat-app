@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Поиск квартиры</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{--bg:var(--tg-theme-bg-color,#17212b);--card:var(--tg-theme-secondary-bg-color,#232e3c);
+    --text:var(--tg-theme-text-color,#f5f5f5);--hint:var(--tg-theme-hint-color,#8a9aa9);
+    --accent:var(--tg-theme-button-color,#5288c1);--on:var(--tg-theme-button-text-color,#fff)}
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px;background:var(--bg);color:var(--text);font:16px system-ui,sans-serif}
+  h1{font-size:22px;margin:0 0 14px}
+  section{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .label{color:var(--hint);font-size:14px}
+  input[type=range]{width:100%;margin-top:12px;accent-color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chips button{border:1px solid var(--accent);background:none;color:var(--text);border-radius:20px;padding:8px 14px;font:inherit}
+  .chips button[aria-pressed=true]{background:var(--accent);color:var(--on)}
+  input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
+  #save{width:100%;border:0;border-radius:12px;padding:14px;background:var(--accent);color:var(--on);font:600 16px system-ui}
+</style>
+</head>
+<body>
+<h1>🏠 Квартиры в Белграде</h1>
+<section>
+  <div class="row"><span class="label">Цена в месяц</span><b id="priceOut"></b></div>
+  <input type="range" id="price" min="200" max="2050" step="50" aria-label="Максимальная цена">
+</section>
+<section>
+  <div class="row"><span class="label">Площадь</span><b id="areaOut"></b></div>
+  <input type="range" id="area" min="0" max="120" step="5" aria-label="Минимальная площадь">
+</section>
+<section><span class="label">Комнаты</span><div class="chips" id="rooms"></div></section>
+<section><span class="label">Районы</span><div class="chips" id="districts"></div></section>
+<section><label class="row">Только собственники <input type="checkbox" id="owners"></label></section>
+<button id="save">Сохранить</button>
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+const q = new URLSearchParams(location.search);
+const list = (name, def) => q.has(name) ? q.get(name).split(",").filter(Boolean) : def;
+const $ = id => document.getElementById(id);
+
+function chips(box, options, selected) {
+  for (const [value, name] of options) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = name; b.dataset.value = value;
+    b.setAttribute("aria-pressed", selected.includes(value));
+    b.onclick = () => b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true");
+    $(box).append(b);
+  }
+}
+chips("rooms", ["1","1.5","2","2.5","3","3.5","4"].map(v => [v, v]), list("rooms", ["1.5","2","2.5"]));
+chips("districts", [["novi beograd","Нови Београд"],["vozdovac","Вождовац"],["vracar","Врачар"],["zvezdara","Звездара"]],
+      list("d", ["novi beograd","vozdovac","vracar","zvezdara"]));
+
+$("price").value = q.has("max") ? (Number(q.get("max")) || 2050) : 900;
+$("area").value = q.has("area") ? Number(q.get("area")) : 35;
+$("owners").checked = q.get("owners") !== "0";
+
+function show() {
+  $("priceOut").textContent = $("price").value > 2000 ? "без лимита" : `до ${$("price").value} €`;
+  $("areaOut").textContent = $("area").value > 0 ? `от ${$("area").value} м²` : "любая";
+}
+$("price").oninput = $("area").oninput = show;
+show();
+
+const picked = box => [...$(box).querySelectorAll('[aria-pressed="true"]')].map(b => b.dataset.value);
+$("save").onclick = () => {
+  const data = JSON.stringify({
+    max_price: $("price").value > 2000 ? null : Number($("price").value),
+    min_area: Number($("area").value) || null,
+    rooms: picked("rooms").map(Number),
+    municipalities: picked("districts"),
+    owners_only: $("owners").checked
+  });
+  if (tg) tg.sendData(data);
+};
+if (tg) { tg.ready(); tg.expand(); }
+</script>
+</body>
+</html>
